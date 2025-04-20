@@ -1,4 +1,4 @@
-#include "katagocoreml/ModelBuilder.hpp"
+#include "ModelBuilder.hpp"
 
 #include <iostream>
 #include <filesystem>
