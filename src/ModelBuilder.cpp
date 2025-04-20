@@ -3,6 +3,7 @@
 #include <fstream>
 #include <memory>
 #include <Model.pb.h>
+#include "ModelVersion.hpp"
 
 using namespace CoreML::Specification;
 using namespace CoreML::Specification::MILSpec;
@@ -42,7 +43,7 @@ namespace katagocoreml
 
         // Define input tensor (FLOAT32, shape [1, 22, 19, 19])
         NamedValueType *input = func.add_inputs();
-        input->set_name("input_spatial");
+        input->set_name(INPUT_SPATIAL_NAME);
 
         TensorType *input_tensor = input->mutable_type()->mutable_tensortype();
         input_tensor->set_datatype(DataType::FLOAT32);
@@ -68,48 +69,114 @@ namespace katagocoreml
         return program;
     }
 
+    // Populate model I/O
+    void addModelIOFeatures(ModelDescription *desc, int batchSize, int nnXLen, int nnYLen, int modelVersion)
+    {
+        const auto dataType = ArrayFeatureType_ArrayDataType_FLOAT32;
+
+        // Input Spatial
+        {
+            auto *feature = desc->add_input();
+            feature->set_name(INPUT_SPATIAL_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            int numSpatial = getNumSpatialFeatures(modelVersion);
+            assert(numSpatial > 0);
+            array->add_shape(batchSize);
+            array->add_shape(numSpatial);
+            array->add_shape(nnYLen);
+            array->add_shape(nnXLen);
+            array->set_datatype(dataType);
+        }
+
+        // Input Global
+        {
+            auto *feature = desc->add_input();
+            feature->set_name(INPUT_GLOBAL_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            int numGlobal = getNumGlobalFeatures(modelVersion);
+            assert(numGlobal > 0);
+            array->add_shape(batchSize);
+            array->add_shape(numGlobal);
+            array->set_datatype(dataType);
+        }
+
+        // Output Policy
+        {
+            auto *feature = desc->add_output();
+            feature->set_name(OUTPUT_POLICY_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            int numPolicy = getNumPolicyChannel(modelVersion);
+            array->add_shape(batchSize);
+            array->add_shape(numPolicy);
+            array->add_shape(nnYLen);
+            array->add_shape(nnXLen);
+            array->set_datatype(dataType);
+        }
+
+        // Output Policy Pass
+        {
+            auto *feature = desc->add_output();
+            feature->set_name(OUTPUT_POLICY_PASS_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            array->add_shape(batchSize);
+            array->add_shape(getNumPolicyChannel(modelVersion));
+            array->set_datatype(dataType);
+        }
+
+        // Output Value
+        {
+            auto *feature = desc->add_output();
+            feature->set_name(OUTPUT_VALUE_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            array->add_shape(batchSize);
+            array->add_shape(3); // channels
+            array->set_datatype(dataType);
+        }
+
+        // Output Score Value
+        {
+            auto *feature = desc->add_output();
+            feature->set_name(OUTPUT_SCORE_VALUE_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            array->add_shape(batchSize);
+            array->add_shape(getNumScoreValueChannel(modelVersion));
+            array->set_datatype(dataType);
+        }
+
+        // Output Ownership
+        {
+            auto *feature = desc->add_output();
+            feature->set_name(OUTPUT_OWNERSHIP_NAME);
+            auto *array = feature->mutable_type()->mutable_multiarraytype();
+            array->add_shape(batchSize);
+            array->add_shape(1);
+            array->add_shape(nnYLen);
+            array->add_shape(nnXLen);
+            array->set_datatype(dataType);
+        }
+    }
+
     bool ModelBuilder::buildMinimalModel(const std::string &outputPath)
     {
-        Model model;
+        const int batchSize = 1;
+        const int nnXLen = 19;
+        const int nnYLen = 19;
+        const int modelVersion = 3;
 
+        Model model;
         model.set_specificationversion(6);
 
         ModelDescription *desc = model.mutable_description();
-        FeatureDescription *inputFeature = desc->add_input();
-
-        inputFeature->set_name("input_spatial");
-
-        CoreML::Specification::ArrayFeatureType *inputArray = inputFeature->mutable_type()->mutable_multiarraytype();
-
-        inputArray->add_shape(1);
-        inputArray->add_shape(22);
-        inputArray->add_shape(19);
-        inputArray->add_shape(19);
-        inputArray->set_datatype(CoreML::Specification::ArrayFeatureType_ArrayDataType_FLOAT32);
-
-        FeatureDescription *outputFeature = desc->add_output();
-
-        outputFeature->set_name("relu_out");
-
-        CoreML::Specification::ArrayFeatureType *outputArray = outputFeature->mutable_type()->mutable_multiarraytype();
-
-        outputArray->add_shape(1);
-        outputArray->add_shape(22);
-        outputArray->add_shape(19);
-        outputArray->add_shape(19);
-        outputArray->set_datatype(CoreML::Specification::ArrayFeatureType_ArrayDataType_FLOAT32);
+        addModelIOFeatures(desc, batchSize, nnXLen, nnYLen, modelVersion);
 
         Program *program = new Program(createProgram());
-
         model.set_allocated_mlprogram(program);
 
-        // === Write to file ===
         std::ofstream ofs(outputPath, std::ios::binary);
         if (!ofs)
         {
             return false;
         }
-
         return model.SerializeToOstream(&ofs);
     }
 
