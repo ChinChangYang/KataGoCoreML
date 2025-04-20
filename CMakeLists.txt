@@ -18,7 +18,7 @@ set(PROTOBUF_LIB_DIR   ${CMAKE_SOURCE_DIR}/coremltools/build/deps/protobuf/cmake
 # — Gather your sources —
 file(GLOB_RECURSE SRC_FILES src/*.cpp)
 
-add_library(katagocoreml ${SRC_FILES})
+add_library(katagocoreml SHARED ${SRC_FILES})
 
 # — Public include: your API headers —
 #    BUILD_INTERFACE: during build use full source path
@@ -45,7 +45,7 @@ target_link_directories(katagocoreml
 
 # — Link only mlmodel and protobuf-lite (static) —
 target_link_libraries(katagocoreml
-    PRIVATE
+    PUBLIC
         mlmodel
         protobuf-lite
 )
