@@ -5,14 +5,10 @@
 
 int main()
 {
-    katagocoreml::ModelBuilder builder;
+    KataGoCoreML::ModelBuilder builder;
 
-    const std::string outputPath = "test_output.mlmodel";
-    if (!builder.buildMinimalModel(outputPath))
-    {
-        std::cerr << "❌ Failed to write minimal model to: " << outputPath << std::endl;
-        return 1;
-    }
+    const std::string outputPath = "test_output.mlpackage";
+    builder.createMLPackage("", outputPath);
 
     if (!std::filesystem::exists(outputPath))
     {

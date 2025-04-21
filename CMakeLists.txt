@@ -11,7 +11,11 @@ option(BUILD_TESTING "Build unit tests" ON)
 set(COREMLTOOLS_BUILD_MLMODEL ${CMAKE_SOURCE_DIR}/coremltools/build/mlmodel)
 set(COREMLTOOLS_INCLUDE_MLMODEL ${COREMLTOOLS_BUILD_MLMODEL}/format)
 
-# — Paths for CoreMLTools’ protobuf-lite —
+# - Paths for CoreMLTools ML package -
+set(COREMLTOOLS_BUILD_MLPACKAGE ${CMAKE_SOURCE_DIR}/coremltools/build)
+set(COREMLTOOLS_INCLUDE_MLPACKAGE ${CMAKE_SOURCE_DIR}/coremltools/modelpackage/src)
+
+# — Paths for CoreMLTools’ protobuf —
 set(PROTOBUF_SRC_DIR   ${CMAKE_SOURCE_DIR}/coremltools/deps/protobuf/src)
 set(PROTOBUF_LIB_DIR   ${CMAKE_SOURCE_DIR}/coremltools/build/deps/protobuf/cmake)
 
@@ -29,25 +33,33 @@ target_include_directories(katagocoreml
         $<INSTALL_INTERFACE:include>
 )
 
-# — Private includes: CoreMLTools model + protobuf-lite headers —
+# — Private includes —
 target_include_directories(katagocoreml
     PRIVATE
         ${COREMLTOOLS_INCLUDE_MLMODEL}
+        ${COREMLTOOLS_INCLUDE_MLPACKAGE}
         ${PROTOBUF_SRC_DIR}
 )
 
-# — Link directories for both mlmodel and protobuf-lite —
+# — Link directories —
 target_link_directories(katagocoreml
     PRIVATE
         ${COREMLTOOLS_BUILD_MLMODEL}
+        ${COREMLTOOLS_BUILD_MLPACKAGE}
         ${PROTOBUF_LIB_DIR}
 )
 
-# — Link only mlmodel and protobuf-lite (static) —
+# - Find Python3 -
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+
+# — Link libraries —
 target_link_libraries(katagocoreml
     PUBLIC
         mlmodel
-        protobuf-lite
+        protobuf
+    PRIVATE
+        modelpackage
+        ${Python3_LIBRARIES}
 )
 
 # — Installation / Export —

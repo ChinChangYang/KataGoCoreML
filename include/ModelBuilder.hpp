@@ -2,7 +2,7 @@
 
 #include <string>
 
-namespace katagocoreml
+namespace KataGoCoreML
 {
     const std::string INPUT_SPATIAL_NAME = "input_spatial";
     const std::string INPUT_GLOBAL_NAME = "input_global";
@@ -19,8 +19,8 @@ namespace katagocoreml
         ModelBuilder();
         ~ModelBuilder();
 
-        // Build a minimal MLModel and serialize it to .mlmodel file
-        bool buildMinimalModel(const std::string &outputPath);
+        void createMLPackage(const std::string &weightsDir,
+                             const std::string &packagePath);
     };
 
-} // namespace katagocoreml
+} // namespace KataGoCoreML

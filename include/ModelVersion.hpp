@@ -1,7 +1,7 @@
 #pragma once
 
 // Model versions
-namespace katagocoreml
+namespace KataGoCoreML
 {
     const int NUM_FEATURES_SPATIAL_V3 = 22;
     const int NUM_FEATURES_GLOBAL_V3 = 14;
