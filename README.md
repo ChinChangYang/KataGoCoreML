@@ -6,7 +6,7 @@ Provides a C++ interface to convert a KataGo model into a CoreML model using App
 ## 🚧 Status
 
 This repository is a **work in progress**. Currently focused on:
-- Building a CoreML model using only `libmlmodel.a`
+- Building convolution operations
 
 ---
 
@@ -34,7 +34,7 @@ This repository is a **work in progress**. Currently focused on:
 
    Expected output:
    ```
-   ✅ Successfully built minimal CoreML model at test_output.mlmodel
+   ✅ Successfully built minimal CoreML model at test_output.mlpackage
    ```
 
 ## 📜 License
