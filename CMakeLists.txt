@@ -67,6 +67,11 @@ target_link_libraries(katagocoreml
 )
 
 # — Installation / Export —
+install(FILES
+    ${COREMLTOOLS_BUILD_MLPACKAGE}/libmodelpackage.dylib
+    DESTINATION lib
+)
+
 install(TARGETS katagocoreml EXPORT KataGoCoreMLTargets
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
@@ -79,15 +84,6 @@ install(EXPORT KataGoCoreMLTargets
     FILE KataGoCoreMLConfig.cmake
     NAMESPACE KataGoCoreML::
     DESTINATION lib/cmake/KataGoCoreML
-)
-
-# — Exporting CoreMLTools modelpackage for use in other projects —
-add_custom_command(TARGET katagocoreml
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${COREMLTOOLS_BUILD_MLPACKAGE}/libmodelpackage.dylib
-        /usr/local/lib/libmodelpackage.dylib
-    COMMENT "Copying libmodelpackage.dylib to local lib directory"
 )
 
 # — Testing —
