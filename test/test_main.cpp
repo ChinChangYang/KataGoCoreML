@@ -8,7 +8,7 @@ int main()
     KataGoCoreML::ModelBuilder builder;
 
     const std::string outputPath = "test_output.mlpackage";
-    builder.createMLPackage("", outputPath);
+    builder.createMLPackage(outputPath);
 
     if (!std::filesystem::exists(outputPath))
     {

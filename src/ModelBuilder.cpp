@@ -2,13 +2,16 @@
 
 #include <fstream>
 #include <memory>
+#include <MILBlob/Blob/StorageWriter.hpp>
 #include <Model.pb.h>
 #include <ModelPackage.hpp>
 #include "ModelVersion.hpp"
 
+using namespace MILBlob;
 using namespace CoreML::Specification;
 using namespace CoreML::Specification::MILSpec;
 using namespace MPL;
+namespace fs = std::filesystem;
 
 namespace KataGoCoreML
 {
@@ -63,7 +66,16 @@ namespace KataGoCoreML
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(numInputChannel);
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
-        weight_attribute_val.mutable_blobfilevalue()->set_filename("@model_path/weights/weight.bin");
+
+        auto weightFileName = "weights/weight.bin";
+        Blob::StorageWriter writer(weightFileName);
+        const std::vector<float> weightData(numOutputChannel * numInputChannel * kernelSize * kernelSize, 0.0f);
+        auto span = Util::MakeSpan(weightData);
+        auto offset = writer.WriteData(span);
+
+        auto *weight_attribute_val_blobfile = weight_attribute_val.mutable_blobfilevalue();
+        weight_attribute_val_blobfile->set_filename("@model_path/weights/weight.bin");
+        weight_attribute_val_blobfile->set_offset(offset);
 
         Value &weight_attribute_name = (*constWeightOp->mutable_attributes())["name"];
         weight_attribute_name.mutable_type()
@@ -244,7 +256,7 @@ namespace KataGoCoreML
 
         // === Convolution operation ===
         Operation *convOp = block.add_operations();
-        convOp->set_type("convolution");
+        convOp->set_type("conv");
 
         // === Inputs ===
         // x (the input tensor)
@@ -334,16 +346,13 @@ namespace KataGoCoreML
         func.set_opset("CoreML5");
         Block &block = (*func.mutable_block_specializations())["CoreML5"];
 
-        // NamedValueType *conv_output = addConvOperation(
-        //     block,
-        //     *inputSpatialValue,
-        //     6, // numOutputChannel
-        //     numSpatial,
-        //     "conv_output");
-        // block.add_outputs(conv_output->name());
-
-        NamedValueType *relu_output = addReLUOperation(block, *inputSpatialValue, "relu_output");
-        block.add_outputs(relu_output->name());
+        NamedValueType *conv_output = addConvOperation(
+            block,
+            *inputSpatialValue,
+            6, // numOutputChannel
+            numSpatial,
+            OUTPUT_POLICY_NAME);
+        block.add_outputs(conv_output->name());
 
         // Add the function to the program
         (*program.mutable_functions())["main"] = func;
@@ -459,17 +468,29 @@ namespace KataGoCoreML
         model.set_allocated_mlprogram(program);
     }
 
-    void ModelBuilder::createMLPackage(const std::string &weightsDir,
-                                       const std::string &packagePath)
+    void ModelBuilder::createMLPackage(const std::string &packagePath)
     {
         const int batchSize = 1;
         const int nnXLen = 19;
         const int nnYLen = 19;
         const int modelVersion = 3;
 
+        // Create a temporary directory for weights
+        fs::path weightsDir = fs::path("weights");
+        if (!fs::exists(weightsDir))
+        {
+            fs::create_directory(weightsDir);
+        }
+
         // Create the model
         Model model;
         setupModel(model, batchSize, nnXLen, nnYLen, modelVersion);
+
+        // Input is input_spatial and input_global
+        assert(model.description().input_size() == 2);
+
+        // Output is output_policy, output_policy_pass, output_value, output_score_value, and output_ownership
+        assert(model.description().output_size() == 5);
 
         // Remove packagePath if it exists
         if (std::filesystem::exists(packagePath))
@@ -498,12 +519,16 @@ namespace KataGoCoreML
 
         tempModelFile.close();
 
-        if (!weightsDir.empty())
+        // Add weights directory
+        package.addItem(weightsDir,
+                        "weights",
+                        "github.com/ChinChangYang/KataGoCoreML",
+                        "KataGo CoreML Model Weights");
+
+        // Remove the temp directory for weights
+        if (fs::exists(weightsDir))
         {
-            package.addItem(weightsDir,
-                            "weights",
-                            "github.com/ChinChangYang/KataGoCoreML",
-                            "KataGo CoreML Model Weights");
+            fs::remove_all(weightsDir);
         }
     }
 

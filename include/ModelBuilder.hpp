@@ -19,8 +19,7 @@ namespace KataGoCoreML
         ModelBuilder();
         ~ModelBuilder();
 
-        void createMLPackage(const std::string &weightsDir,
-                             const std::string &packagePath);
+        void createMLPackage(const std::string &packagePath);
     };
 
 } // namespace KataGoCoreML
