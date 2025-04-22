@@ -16,6 +16,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Setup Miniconda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+          miniconda-version: "latest"
+          python-version: 3.11
+
     - name: Build coremltools
       run: ./scripts/build_coremltools.sh
 
