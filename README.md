@@ -37,6 +37,22 @@ This repository is a **work in progress**. Currently focused on:
    ✅ Successfully built minimal CoreML model at test_output.mlpackage
    ```
 
+## 📦 Installation
+
+To install this library, run:
+```bash
+make install
+```
+
+To use this in your KataGo project, add the following lines to your `CMakeLists.txt`:
+
+```
+find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(KataGoCoreML REQUIRED)
+
+target_link_libraries(katago KataGoCoreML ${Python3_LIBRARIES})
+```
+
 ## 📜 License
 
 This project is licensed under the **MIT License**. See `LICENSE` for details.
