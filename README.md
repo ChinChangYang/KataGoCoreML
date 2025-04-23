@@ -12,14 +12,7 @@ This repository is a **work in progress**. Currently focused on:
 
 ## 🔧 Build Instructions
 
-1. **Build the native CoreML libraries**
-
-   Clone and build CoreMLTools using the included script:
-   ```bash
-   ./scripts/build_coremltools.sh
-   ```
-
-2. **Configure and build the C++ interface**
+1. **Configure and build the C++ interface**
    ```bash
    mkdir build
    cd build
@@ -27,14 +20,14 @@ This repository is a **work in progress**. Currently focused on:
    make
    ```
 
-3. **Run tests**
+2. **Run tests**
    ```bash
-   ./katagocoreml_tests
+   ctest
    ```
 
    Expected output:
    ```
-   ✅ Successfully built minimal CoreML model at test_output.mlpackage
+   100% tests passed, 0 tests failed out of 1
    ```
 
 ## 📦 Installation
