@@ -6,6 +6,7 @@
 #include <Model.pb.h>
 #include <ModelPackage.hpp>
 #include "ModelVersion.hpp"
+#include "UtilTempDir.hpp"
 
 using namespace MILBlob;
 using namespace CoreML::Specification;
@@ -40,7 +41,8 @@ namespace KataGoCoreML
                                      const NamedValueType &input,
                                      const int numOutputChannel,
                                      const int numInputChannel,
-                                     std::string name)
+                                     std::string name,
+                                     const std::string &weightsPath)
     {
         const int kernelSize = 3;
         const std::string weightName = name + "_weight";
@@ -67,8 +69,7 @@ namespace KataGoCoreML
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
 
-        auto weightFileName = "weights/weight.bin";
-        Blob::StorageWriter writer(weightFileName);
+        Blob::StorageWriter writer(weightsPath);
         const std::vector<float> weightData(numOutputChannel * numInputChannel * kernelSize * kernelSize, 0.0f);
         auto span = Util::MakeSpan(weightData);
         auto offset = writer.WriteData(span);
@@ -319,7 +320,8 @@ namespace KataGoCoreML
                       const int batchSize,
                       const int nnXLen,
                       const int nnYLen,
-                      const int modelVersion)
+                      const int modelVersion,
+                      const std::string &weightsPath)
     {
         const auto dataType = DataType::FLOAT32;
 
@@ -351,7 +353,8 @@ namespace KataGoCoreML
             *inputSpatialValue,
             6, // numOutputChannel
             numSpatial,
-            OUTPUT_POLICY_NAME);
+            OUTPUT_POLICY_NAME,
+            weightsPath);
         block.add_outputs(conv_output->name());
 
         // Add the function to the program
@@ -456,7 +459,8 @@ namespace KataGoCoreML
                     int batchSize,
                     int nnXLen,
                     int nnYLen,
-                    int modelVersion)
+                    int modelVersion,
+                    const std::string &weightsPath)
     {
         model.set_specificationversion(6);
 
@@ -464,8 +468,71 @@ namespace KataGoCoreML
         addModelIOFeatures(*desc, batchSize, nnXLen, nnYLen, modelVersion);
 
         Program *program = new Program();
-        setupProgram(*program, batchSize, nnXLen, nnYLen, modelVersion);
+        setupProgram(*program, batchSize, nnXLen, nnYLen, modelVersion, weightsPath);
         model.set_allocated_mlprogram(program);
+    }
+
+    namespace fs = std::filesystem;
+
+    std::string createTempFile(const std::string &templatePattern)
+    {
+        std::string path = templatePattern;
+        int fd = mkstemp(const_cast<char *>(path.data()));
+        if (fd < 0)
+        {
+            throw std::runtime_error("Failed to create temporary file: " + templatePattern);
+        }
+
+        std::cout << "Temporary file created: " << path << std::endl;
+        return path;
+    }
+
+    std::string setupAndSerializeModel(int batchSize,
+                                       int nnXLen,
+                                       int nnYLen,
+                                       int modelVersion,
+                                       const std::string &weightFile)
+    {
+        Model model;
+        setupModel(model, batchSize, nnXLen, nnYLen, modelVersion, weightFile);
+
+        // Verify expected inputs and outputs
+        assert(model.description().input_size() == 2);
+        assert(model.description().output_size() == 5);
+
+        // Serialize to a new temp file
+        auto tmpPattern = (fs::temp_directory_path() / "modelXXXXXX").string();
+        std::string modelPath = createTempFile(tmpPattern);
+
+        std::ofstream ofs(modelPath, std::ios::binary);
+        model.SerializeToOstream(&ofs);
+        ofs.close();
+
+        std::cout << "Model serialized to: " << modelPath << std::endl;
+        return modelPath;
+    }
+
+    void cleanExistingPackage(const std::string &packagePath)
+    {
+        if (fs::exists(packagePath))
+        {
+            fs::remove_all(packagePath);
+        }
+    }
+
+    void buildModelPackage(const std::string &packagePath,
+                           const std::string &modelPath,
+                           const TempDir &weightDir)
+    {
+        ModelPackage pkg(packagePath);
+        pkg.setRootModel(modelPath,
+                         "model.mlmodel",
+                         "github.com/ChinChangYang/KataGoCoreML",
+                         "KataGo CoreML Model Specification");
+        pkg.addItem(weightDir.path(),
+                    "weights",
+                    "github.com/ChinChangYang/KataGoCoreML",
+                    "KataGo CoreML Model Weights");
     }
 
     void ModelBuilder::createMLPackage(const std::string &packagePath)
@@ -475,61 +542,22 @@ namespace KataGoCoreML
         const int nnYLen = 19;
         const int modelVersion = 3;
 
-        // Create a temporary directory for weights
-        fs::path weightsDir = fs::path("weights");
-        if (!fs::exists(weightsDir))
-        {
-            fs::create_directory(weightsDir);
-        }
+        // Prepare a temp directory and weight file
+        auto weightDir = TempDir("weights");
+        auto weightFile = createTempFile(weightDir.path().string() + "/weight.bin");
 
-        // Create the model
-        Model model;
-        setupModel(model, batchSize, nnXLen, nnYLen, modelVersion);
+        // Build and serialize the model
+        auto modelFile = setupAndSerializeModel(batchSize,
+                                                nnXLen,
+                                                nnYLen,
+                                                modelVersion,
+                                                weightFile);
 
-        // Input is input_spatial and input_global
-        assert(model.description().input_size() == 2);
+        // Remove any existing package
+        cleanExistingPackage(packagePath);
 
-        // Output is output_policy, output_policy_pass, output_value, output_score_value, and output_ownership
-        assert(model.description().output_size() == 5);
-
-        // Remove packagePath if it exists
-        if (std::filesystem::exists(packagePath))
-        {
-            std::filesystem::remove_all(packagePath);
-        }
-
-        // Write the model to a temp file
-        char tempModelFileName[] = "/tmp/modelXXXXXX";
-        int fd = mkstemp(tempModelFileName);
-        if (fd == -1)
-        {
-            throw std::runtime_error("Failed to create temporary file");
-        }
-
-        std::ofstream tempModelFile(tempModelFileName, std::ios::binary);
-        model.SerializeToOstream(&tempModelFile);
-        tempModelFile.flush();
-
-        // Create the model package
-        ModelPackage package(packagePath);
-        package.setRootModel(tempModelFileName,
-                             "model.mlmodel",
-                             "github.com/ChinChangYang/KataGoCoreML",
-                             "KataGo CoreML Model Specification");
-
-        tempModelFile.close();
-
-        // Add weights directory
-        package.addItem(weightsDir,
-                        "weights",
-                        "github.com/ChinChangYang/KataGoCoreML",
-                        "KataGo CoreML Model Weights");
-
-        // Remove the temp directory for weights
-        if (fs::exists(weightsDir))
-        {
-            fs::remove_all(weightsDir);
-        }
+        // Assemble the final package
+        buildModelPackage(packagePath, modelFile, weightDir);
     }
 
 } // namespace KataGoCoreML
