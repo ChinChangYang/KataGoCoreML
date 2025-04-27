@@ -316,11 +316,7 @@ namespace KataGoCoreML
         return output;
     }
 
-    void setupProgram(Program &program,
-                      const int batchSize,
-                      const int nnXLen,
-                      const int nnYLen,
-                      const int modelVersion,
+    void setupProgram(ModelBuilder &mb, Program &program,
                       const std::string &weightsPath)
     {
         const auto dataType = DataType::FLOAT32;
@@ -331,26 +327,31 @@ namespace KataGoCoreML
         // Create Function
         Function func;
 
-        // Input Spatial Tensor
-        NamedValueType *inputSpatialValue = func.add_inputs();
-        inputSpatialValue->set_name(INPUT_SPATIAL_NAME);
-
-        TensorType *inputSpatialTensor = inputSpatialValue->mutable_type()->mutable_tensortype();
-        const int numSpatial = getNumSpatialFeatures(modelVersion);
-        inputSpatialTensor->set_datatype(dataType);
-        inputSpatialTensor->set_rank(4);
-        inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(batchSize);
-        inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(numSpatial);
-        inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(nnYLen);
-        inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(nnXLen);
+        // For each input feature, add a input spatial tensor to the function
+        for (const auto &inputFeature : mb.getInputFeatures())
+        {
+            auto *inputSpatialValue = func.add_inputs();
+            inputSpatialValue->set_name(inputFeature.name);
+            auto *inputSpatialTensor = inputSpatialValue->mutable_type()->mutable_tensortype();
+            inputSpatialTensor->set_datatype(dataType);
+            inputSpatialTensor->set_rank(inputFeature.shape.size());
+            for (const auto &dim : inputFeature.shape)
+            {
+                inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(dim);
+            }
+        }
 
         // Define Block (opset = "CoreML5")
         func.set_opset("CoreML5");
         Block &block = (*func.mutable_block_specializations())["CoreML5"];
 
+        // Hardcoded values
+        auto inputSpatialValue = func.inputs(0);
+        const int numSpatial = func.inputs(0).type().tensortype().dimensions(1).constant().size();
+
         NamedValueType *conv_output = addConvOperation(
             block,
-            *inputSpatialValue,
+            inputSpatialValue,
             6, // numOutputChannel
             numSpatial,
             OUTPUT_POLICY_NAME,
@@ -362,35 +363,27 @@ namespace KataGoCoreML
     }
 
     // Populate model I/O
-    void addModelIOFeatures(ModelDescription &desc, int batchSize, int nnXLen, int nnYLen, int modelVersion)
+    void addModelIOFeatures(ModelBuilder &mb, ModelDescription &desc)
     {
         const auto dataType = ArrayFeatureType_ArrayDataType_FLOAT32;
 
-        // Input Spatial
+        // For each input feature, add a feature to the model description
+        for (const auto &inputFeature : mb.getInputFeatures())
         {
             auto *feature = desc.add_input();
-            feature->set_name(INPUT_SPATIAL_NAME);
+            feature->set_name(inputFeature.name);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numSpatial = getNumSpatialFeatures(modelVersion);
-            assert(numSpatial > 0);
-            array->add_shape(batchSize);
-            array->add_shape(numSpatial);
-            array->add_shape(nnYLen);
-            array->add_shape(nnXLen);
+            for (const auto &dim : inputFeature.shape)
+            {
+                array->add_shape(dim);
+            }
             array->set_datatype(dataType);
         }
 
-        // Input Global
-        {
-            auto *feature = desc.add_input();
-            feature->set_name(INPUT_GLOBAL_NAME);
-            auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numGlobal = getNumGlobalFeatures(modelVersion);
-            assert(numGlobal > 0);
-            array->add_shape(batchSize);
-            array->add_shape(numGlobal);
-            array->set_datatype(dataType);
-        }
+        const int modelVersion = 3;
+        const int batchSize = 1;
+        const int nnXLen = 19;
+        const int nnYLen = 19;
 
         // Output Policy
         {
@@ -455,24 +448,18 @@ namespace KataGoCoreML
         }
     }
 
-    void setupModel(Model &model,
-                    int batchSize,
-                    int nnXLen,
-                    int nnYLen,
-                    int modelVersion,
+    void setupModel(ModelBuilder &mb, Model &model,
                     const std::string &weightsPath)
     {
         model.set_specificationversion(6);
 
         ModelDescription *desc = model.mutable_description();
-        addModelIOFeatures(*desc, batchSize, nnXLen, nnYLen, modelVersion);
+        addModelIOFeatures(mb, *desc);
 
         Program *program = new Program();
-        setupProgram(*program, batchSize, nnXLen, nnYLen, modelVersion, weightsPath);
+        setupProgram(mb, *program, weightsPath);
         model.set_allocated_mlprogram(program);
     }
-
-    namespace fs = std::filesystem;
 
     std::string createTempFile(const std::string &templatePattern)
     {
@@ -487,18 +474,10 @@ namespace KataGoCoreML
         return path;
     }
 
-    std::string setupAndSerializeModel(int batchSize,
-                                       int nnXLen,
-                                       int nnYLen,
-                                       int modelVersion,
-                                       const std::string &weightFile)
+    std::string ModelBuilder::setupAndSerializeModel(const std::string &weightFile)
     {
         Model model;
-        setupModel(model, batchSize, nnXLen, nnYLen, modelVersion, weightFile);
-
-        // Verify expected inputs and outputs
-        assert(model.description().input_size() == 2);
-        assert(model.description().output_size() == 5);
+        setupModel(*this, model, weightFile);
 
         // Serialize to a new temp file
         auto tmpPattern = (fs::temp_directory_path() / "modelXXXXXX").string();
@@ -535,23 +514,19 @@ namespace KataGoCoreML
                     "KataGo CoreML Model Weights");
     }
 
+    void ModelBuilder::addInputFeature(InputFeature &inputFeature)
+    {
+        inputFeatures.push_back(inputFeature);
+    }
+
     void ModelBuilder::createMLPackage(const std::string &packagePath)
     {
-        const int batchSize = 1;
-        const int nnXLen = 19;
-        const int nnYLen = 19;
-        const int modelVersion = 3;
-
         // Prepare a temp directory and weight file
         auto weightDir = TempDir("weights");
         auto weightFile = createTempFile(weightDir.path().string() + "/weight.bin");
 
         // Build and serialize the model
-        auto modelFile = setupAndSerializeModel(batchSize,
-                                                nnXLen,
-                                                nnYLen,
-                                                modelVersion,
-                                                weightFile);
+        auto modelFile = setupAndSerializeModel(weightFile);
 
         // Remove any existing package
         cleanExistingPackage(packagePath);

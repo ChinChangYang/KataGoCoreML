@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include "UtilTempDir.hpp"
 
 namespace KataGoCoreML
 {
@@ -13,13 +15,35 @@ namespace KataGoCoreML
     const std::string OUTPUT_SCORE_VALUE_NAME = "output_score_value";
     const std::string OUTPUT_OWNERSHIP_NAME = "output_ownership";
 
+    class InputFeature
+    {
+    public:
+        std::string name;
+        std::vector<int> shape;
+
+        InputFeature(const std::string &name, const std::vector<int> &shape)
+            : name(name), shape(shape) {}
+    };
+
     class ModelBuilder
     {
     public:
         ModelBuilder();
         ~ModelBuilder();
 
+        void addInputFeature(InputFeature &inputFeature);
         void createMLPackage(const std::string &packagePath);
+
+        const std::vector<InputFeature> &getInputFeatures() const
+        {
+            return inputFeatures;
+        }
+
+    private:
+        std::vector<InputFeature> inputFeatures;
+        std::string packagePath;
+
+        std::string setupAndSerializeModel(const std::string &weightFile);
     };
 
 } // namespace KataGoCoreML

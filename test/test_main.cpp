@@ -5,8 +5,16 @@
 
 int main()
 {
-    KataGoCoreML::ModelBuilder builder;
+    const int batchSize = 1;
+    const int numSpatialFeatures = 22;
+    const int nnXLen = 19;
+    const int nnYLen = 19;
 
+    KataGoCoreML::ModelBuilder builder;
+    KataGoCoreML::InputFeature inputSpatial("input_spatial",
+                                            {batchSize, numSpatialFeatures, nnYLen, nnXLen});
+
+    builder.addInputFeature(inputSpatial);
     const std::string outputPath = "test_output.mlpackage";
     builder.createMLPackage(outputPath);
 
