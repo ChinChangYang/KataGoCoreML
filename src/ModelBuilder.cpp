@@ -7,6 +7,7 @@
 #include <ModelPackage.hpp>
 #include "ModelVersion.hpp"
 #include "UtilTempDir.hpp"
+#include "CoremltoolsDefines.hpp"
 
 using namespace MILBlob;
 using namespace CoreML::Specification;
@@ -319,9 +320,10 @@ namespace KataGoCoreML
     void setupProgram(ModelBuilder &mb, Program &program,
                       const std::string &weightsPath)
     {
+        // Data type will be configurable, but for now we use float32
         const auto dataType = DataType::FLOAT32;
 
-        // Set version
+        // Version is set to a value that is consistent with coremltools
         program.set_version(1);
 
         // Create Function
@@ -341,11 +343,11 @@ namespace KataGoCoreML
             }
         }
 
-        // Define Block (opset = "CoreML5")
-        func.set_opset("CoreML5");
-        Block &block = (*func.mutable_block_specializations())["CoreML5"];
+        // Define a convolution block for test purposes
+        func.set_opset(OPSET_SPECIFICATION_VERSION_IOS_15);
+        Block &block = (*func.mutable_block_specializations())[OPSET_SPECIFICATION_VERSION_IOS_15];
 
-        // Hardcoded values
+        // Hardcoded values for test purposes
         auto inputSpatialValue = func.inputs(0);
         const int numSpatial = func.inputs(0).type().tensortype().dimensions(1).constant().size();
 
@@ -365,6 +367,7 @@ namespace KataGoCoreML
     // Populate model I/O
     void addModelIOFeatures(ModelBuilder &mb, ModelDescription &desc)
     {
+        // Data type will be configurable, but for now we use float32
         const auto dataType = ArrayFeatureType_ArrayDataType_FLOAT32;
 
         // For each input feature, add a feature to the model description
@@ -380,6 +383,8 @@ namespace KataGoCoreML
             array->set_datatype(dataType);
         }
 
+        // KataGo model version, batch size, board size, will be configurable,
+        // but for now we use a hardcoded version
         const int modelVersion = 3;
         const int batchSize = 1;
         const int nnXLen = 19;
@@ -451,7 +456,8 @@ namespace KataGoCoreML
     void setupModel(ModelBuilder &mb, Model &model,
                     const std::string &weightsPath)
     {
-        model.set_specificationversion(6);
+        // Specification version is set to a value that is consistent with coremltools
+        model.set_specificationversion(SPECIFICATION_VERSION_IOS_15);
 
         ModelDescription *desc = model.mutable_description();
         addModelIOFeatures(mb, *desc);
@@ -476,13 +482,13 @@ namespace KataGoCoreML
 
     std::string ModelBuilder::setupAndSerializeModel(const std::string &weightFile)
     {
+        // Initialize and setup the model
         Model model;
         setupModel(*this, model, weightFile);
 
-        // Serialize to a new temp file
+        // Serialize the model to a new temp file
         auto tmpPattern = (fs::temp_directory_path() / "modelXXXXXX").string();
         std::string modelPath = createTempFile(tmpPattern);
-
         std::ofstream ofs(modelPath, std::ios::binary);
         model.SerializeToOstream(&ofs);
         ofs.close();
@@ -523,7 +529,7 @@ namespace KataGoCoreML
     {
         // Prepare a temp directory and weight file
         auto weightDir = TempDir("weights");
-        auto weightFile = createTempFile(weightDir.path().string() + "/weight.bin");
+        auto weightFile = weightDir.path().string() + "/weight.bin";
 
         // Build and serialize the model
         auto modelFile = setupAndSerializeModel(weightFile);
