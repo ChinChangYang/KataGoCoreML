@@ -1,0 +1,16 @@
+if(NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "@CMAKE_INSTALL_PREFIX@")
+endif()
+
+message(STATUS "Uninstalling from ${CMAKE_INSTALL_PREFIX}")
+
+if(EXISTS "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt")
+  file(READ "@CMAKE_CURRENT_BINARY_DIR@/install_manifest.txt" files)
+  string(REGEX REPLACE "\n" ";" files "${files}")
+  foreach(file ${files})
+    message(STATUS "Removing ${file}")
+    file(REMOVE "${file}")
+  endforeach()
+else()
+  message(FATAL_ERROR "Cannot find install_manifest.txt. Run install first.")
+endif()
