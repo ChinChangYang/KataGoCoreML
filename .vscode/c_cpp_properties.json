@@ -1,0 +1,25 @@
+{
+    "configurations": [
+        {
+            "name": "Default",
+            "includePath": [
+                "${workspaceFolder}/include/**",
+                "${workspaceFolder}/coremltools/mlmodel/src/**",
+                "${workspaceFolder}/coremltools/mlmodel/build/format/**",
+                "${workspaceFolder}/coremltools/modelpackage/src/**",
+                "${workspaceFolder}/coremltools/deps/protobuf/src/**"
+            ],
+            "defines": [
+            ],
+            "macFrameworkPath": [
+                "/System/Library/Frameworks",
+                "/Library/Frameworks"
+            ],
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "macos-clang-arm64"
+        }
+    ],
+    "version": 4
+}
