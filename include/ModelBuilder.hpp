@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "UtilTempDir.hpp"
+#include "ModelDescription.hpp"
 
 namespace KataGoCoreML
 {
@@ -28,8 +29,11 @@ namespace KataGoCoreML
     class ModelBuilder
     {
     public:
-        ModelBuilder();
-        ~ModelBuilder();
+        ModelBuilder(ModelDesc &modelDesc, int nnXLen, int nnYLen, int batchSize = 1)
+            : modelDesc(modelDesc),
+              nnXLen(nnXLen),
+              nnYLen(nnYLen),
+              batchSize(batchSize) {}
 
         void addInputFeature(InputFeature &inputFeature);
         void createMLPackage(const std::string &packagePath);
@@ -39,9 +43,33 @@ namespace KataGoCoreML
             return inputFeatures;
         }
 
+        ModelDesc &getModelDesc() const
+        {
+            return modelDesc;
+        }
+
+        int getNnXLen() const
+        {
+            return nnXLen;
+        }
+
+        int getNnYLen() const
+        {
+            return nnYLen;
+        }
+
+        int getBatchSize() const
+        {
+            return batchSize;
+        }
+
     private:
         std::vector<InputFeature> inputFeatures;
         std::string packagePath;
+        ModelDesc &modelDesc;
+        int nnXLen;
+        int nnYLen;
+        int batchSize;
 
         std::string setupAndSerializeModel(const std::string &weightFile);
     };

@@ -5,14 +5,23 @@
 
 int main()
 {
-    KataGoCoreML::ModelBuilder builder;
- 
+    KataGoCoreML::ModelDesc modelDesc;
+
+    modelDesc.modelVersion = 3;
+    modelDesc.numPolicyChannels = 1;
+    modelDesc.numValueChannels = 3;
+    modelDesc.numScoreValueChannels = 1;
+    modelDesc.numOwnershipChannels = 1;
+
+    const int nnXLen = 19;
+    const int nnYLen = 19;
+
+    KataGoCoreML::ModelBuilder builder(modelDesc, nnXLen, nnYLen);
+
     // Input spatial feature
     const int batchSize = 1;
     const int numSpatialFeatures = 22;
-    const int nnXLen = 19;
-    const int nnYLen = 19;
- 
+
     KataGoCoreML::InputFeature inputSpatial("input_spatial",
                                             {batchSize, numSpatialFeatures, nnYLen, nnXLen});
 
@@ -20,7 +29,7 @@ int main()
 
     // Input global feature
     const int numGlobalFeatures = 19;
-    KataGoCoreML::InputFeature inputGlobal("input_global", {1, numGlobalFeatures});
+    KataGoCoreML::InputFeature inputGlobal("input_global", {batchSize, numGlobalFeatures});
     builder.addInputFeature(inputGlobal);
 
     // Create a CoreML package with the model builder
@@ -33,6 +42,6 @@ int main()
         return 1;
     }
 
-    std::cout << "✅ Successfully built a CoreML model at " << outputPath << std::endl;
+    std::cout << "✅ Successfully built a CoreML package at " << outputPath << std::endl;
     return 0;
 }

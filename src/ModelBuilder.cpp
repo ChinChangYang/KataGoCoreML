@@ -17,9 +17,6 @@ namespace fs = std::filesystem;
 
 namespace KataGoCoreML
 {
-    ModelBuilder::ModelBuilder() = default;
-    ModelBuilder::~ModelBuilder() = default;
-
     NamedValueType *addReLUOperation(Block &block, const NamedValueType &input, const char *name)
     {
         // Create a new ReLU operation.
@@ -43,7 +40,7 @@ namespace KataGoCoreML
                                      const int numOutputChannel,
                                      const int numInputChannel,
                                      std::string name,
-                                     const std::string &weightsPath)
+                                     Blob::StorageWriter &weightWriter)
     {
         const int kernelSize = 3;
         const std::string weightName = name + "_weight";
@@ -70,10 +67,9 @@ namespace KataGoCoreML
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
         weight_attribute_tensor_type->add_dimensions()->mutable_constant()->set_size(kernelSize);
 
-        Blob::StorageWriter writer(weightsPath);
         const std::vector<float> weightData(numOutputChannel * numInputChannel * kernelSize * kernelSize, 0.0f);
         auto span = Util::MakeSpan(weightData);
-        auto offset = writer.WriteData(span);
+        auto offset = weightWriter.WriteData(span);
 
         auto *weight_attribute_val_blobfile = weight_attribute_val.mutable_blobfilevalue();
         weight_attribute_val_blobfile->set_filename("@model_path/weights/weight.bin");
@@ -332,33 +328,37 @@ namespace KataGoCoreML
         // For each input feature, add a input spatial tensor to the function
         for (const auto &inputFeature : mb.getInputFeatures())
         {
-            auto *inputSpatialValue = func.add_inputs();
-            inputSpatialValue->set_name(inputFeature.name);
-            auto *inputSpatialTensor = inputSpatialValue->mutable_type()->mutable_tensortype();
-            inputSpatialTensor->set_datatype(dataType);
-            inputSpatialTensor->set_rank(inputFeature.shape.size());
+            auto *inputValue = func.add_inputs();
+            inputValue->set_name(inputFeature.name);
+            auto *inputTensor = inputValue->mutable_type()->mutable_tensortype();
+            inputTensor->set_datatype(dataType);
+            inputTensor->set_rank(inputFeature.shape.size());
             for (const auto &dim : inputFeature.shape)
             {
-                inputSpatialTensor->add_dimensions()->mutable_constant()->set_size(dim);
+                inputTensor->add_dimensions()->mutable_constant()->set_size(dim);
             }
         }
 
-        // Define a convolution block for test purposes
+        // Define a block for input, output, and operations
         func.set_opset(OPSET_SPECIFICATION_VERSION_IOS_15);
         Block &block = (*func.mutable_block_specializations())[OPSET_SPECIFICATION_VERSION_IOS_15];
 
-        // Hardcoded values for test purposes
-        auto inputSpatialValue = func.inputs(0);
+        // The inputs(0) is the input spatial tensor
+        NamedValueType inputSpatialValue = func.inputs(0);
         const int numSpatial = func.inputs(0).type().tensortype().dimensions(1).constant().size();
 
-        NamedValueType *conv_output = addConvOperation(
+        // Create a writer for the weights
+        Blob::StorageWriter weightWriter(weightsPath);
+
+        NamedValueType *initial_conv = addConvOperation(
             block,
             inputSpatialValue,
-            6, // numOutputChannel
+            mb.getModelDesc().numPolicyChannels,
             numSpatial,
             OUTPUT_POLICY_NAME,
-            weightsPath);
-        block.add_outputs(conv_output->name());
+            weightWriter);
+
+        block.add_outputs(initial_conv->name());
 
         // Add the function to the program
         (*program.mutable_functions())["main"] = func;
@@ -383,20 +383,18 @@ namespace KataGoCoreML
             array->set_datatype(dataType);
         }
 
-        // KataGo model version, batch size, board size, will be configurable,
-        // but for now we use a hardcoded version
-        const int modelVersion = 3;
-        const int batchSize = 1;
-        const int nnXLen = 19;
-        const int nnYLen = 19;
+        const int batchSize = mb.getBatchSize();
+        const int nnXLen = mb.getNnXLen();
+        const int nnYLen = mb.getNnYLen();
+        const ModelDesc &modelDesc = mb.getModelDesc();
+        const int numPolicy = modelDesc.numPolicyChannels;
+        assert(numPolicy > 0);
 
         // Output Policy
         {
             auto *feature = desc.add_output();
             feature->set_name(OUTPUT_POLICY_NAME);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numPolicy = getNumPolicyChannel(modelVersion);
-            assert(numPolicy > 0);
             array->add_shape(batchSize);
             array->add_shape(numPolicy);
             array->add_shape(nnYLen);
@@ -409,8 +407,6 @@ namespace KataGoCoreML
             auto *feature = desc.add_output();
             feature->set_name(OUTPUT_POLICY_PASS_NAME);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numPolicy = getNumPolicyChannel(modelVersion);
-            assert(numPolicy > 0);
             array->add_shape(batchSize);
             array->add_shape(numPolicy);
             array->set_datatype(dataType);
@@ -421,7 +417,8 @@ namespace KataGoCoreML
             auto *feature = desc.add_output();
             feature->set_name(OUTPUT_VALUE_NAME);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numValue = 3;
+            const int numValue = modelDesc.numValueChannels;
+            assert(numValue > 0);
             array->add_shape(batchSize);
             array->add_shape(numValue);
             array->set_datatype(dataType);
@@ -432,7 +429,7 @@ namespace KataGoCoreML
             auto *feature = desc.add_output();
             feature->set_name(OUTPUT_SCORE_VALUE_NAME);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numScoreValue = getNumScoreValueChannel(modelVersion);
+            const int numScoreValue = modelDesc.numScoreValueChannels;
             assert(numScoreValue > 0);
             array->add_shape(batchSize);
             array->add_shape(numScoreValue);
@@ -444,7 +441,8 @@ namespace KataGoCoreML
             auto *feature = desc.add_output();
             feature->set_name(OUTPUT_OWNERSHIP_NAME);
             auto *array = feature->mutable_type()->mutable_multiarraytype();
-            const int numOwnership = 1;
+            const int numOwnership = modelDesc.numOwnershipChannels;
+            assert(numOwnership > 0);
             array->add_shape(batchSize);
             array->add_shape(numOwnership);
             array->add_shape(nnYLen);
