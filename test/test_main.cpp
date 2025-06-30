@@ -7,6 +7,8 @@ int main()
 {
     KataGoCoreML::ModelDesc modelDesc;
 
+    modelDesc.numInputChannels = 22;
+    modelDesc.numInputGlobalChannels = 19;
     modelDesc.modelVersion = 3;
     modelDesc.numPolicyChannels = 1;
     modelDesc.numValueChannels = 3;
@@ -17,20 +19,6 @@ int main()
     const int nnYLen = 19;
 
     KataGoCoreML::ModelBuilder builder(modelDesc, nnXLen, nnYLen);
-
-    // Input spatial feature
-    const int batchSize = 1;
-    const int numSpatialFeatures = 22;
-
-    KataGoCoreML::InputFeature inputSpatial("input_spatial",
-                                            {batchSize, numSpatialFeatures, nnYLen, nnXLen});
-
-    builder.addInputFeature(inputSpatial);
-
-    // Input global feature
-    const int numGlobalFeatures = 19;
-    KataGoCoreML::InputFeature inputGlobal("input_global", {batchSize, numGlobalFeatures});
-    builder.addInputFeature(inputGlobal);
 
     // Create a CoreML package with the model builder
     const std::string outputPath = "test_output.mlpackage";

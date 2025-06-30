@@ -478,6 +478,30 @@ namespace KataGoCoreML
         return path;
     }
 
+    const std::vector<InputFeature> ModelBuilder::getInputFeatures() const
+    {
+        std::vector<InputFeature> inputFeatures;
+
+        // Input spatial feature
+        const ModelDesc &modelDesc = getModelDesc();
+        const int batchSize = getBatchSize();
+        const int numSpatialFeatures = modelDesc.numInputChannels;
+        const int nnXLen = getNnXLen();
+        const int nnYLen = getNnYLen();
+
+        InputFeature inputSpatial("input_spatial",
+                                  {batchSize, numSpatialFeatures, nnYLen, nnXLen});
+
+        inputFeatures.push_back(inputSpatial);
+
+        // Input global feature
+        const int numGlobalFeatures = modelDesc.numInputGlobalChannels;
+        InputFeature inputGlobal("input_global", {batchSize, numGlobalFeatures});
+        inputFeatures.push_back(inputGlobal);
+
+        return inputFeatures;
+    }
+
     std::string ModelBuilder::setupAndSerializeModel(const std::string &weightFile)
     {
         // Initialize and setup the model
@@ -516,11 +540,6 @@ namespace KataGoCoreML
                     "weights",
                     "github.com/ChinChangYang/KataGoCoreML",
                     "KataGo CoreML Model Weights");
-    }
-
-    void ModelBuilder::addInputFeature(InputFeature &inputFeature)
-    {
-        inputFeatures.push_back(inputFeature);
     }
 
     void ModelBuilder::createMLPackage(const std::string &packagePath)

@@ -35,13 +35,8 @@ namespace KataGoCoreML
               nnYLen(nnYLen),
               batchSize(batchSize) {}
 
-        void addInputFeature(InputFeature &inputFeature);
         void createMLPackage(const std::string &packagePath);
-
-        const std::vector<InputFeature> &getInputFeatures() const
-        {
-            return inputFeatures;
-        }
+        const std::vector<InputFeature> getInputFeatures() const;
 
         ModelDesc &getModelDesc() const
         {
