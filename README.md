@@ -1,3 +1,5 @@
+**This project stops because the [katagocoreml](https://github.com/ChinChangYang/coremltools/tree/katagocoremltools/katagocoreml) project implements the C++ interface that converts a KataGo model into a Core ML model.**
+
 # KataGoCoreML
 Provides a C++ interface to convert a KataGo model into a CoreML model using Apple’s native CoreML libraries.
 
